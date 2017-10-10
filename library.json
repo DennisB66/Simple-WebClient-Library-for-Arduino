@@ -1,0 +1,22 @@
+{
+  "name": "Simple-WebClient-Library-for-Arduino",
+  "keywords": "web client",
+  "description": "Library for an Arduino based web client",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/DennisB66/Simple-WebClient-Library-for-Arduino"
+  },
+  "authors":
+  [
+    {
+      "name": "Dennis Buis",
+      "email": "dennis.buis@gmail.com",
+      "url": "",
+      "maintainer": true
+    }
+  ],
+  "version": "0.1",
+  "frameworks": "arduino",
+  "platforms": "*"
+}
