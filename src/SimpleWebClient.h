@@ -10,24 +10,33 @@
 #define SIMPLE_WEB_CLIENT_H
 
 #include <Arduino.h>
-#include <SPI.h>
-#include "Ethernet.h"
-#include "Dns.h"
 #include "SimpleHTTP.h"
+#include "SimpleBuffer.h"
 
-#define HTTP_HOST_SIZE 64
-#define HTTP_PATH_SIZE 32
-#define HTTP_ARGS_SIZE 32
+#if   defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif defined(__AVR__)
+#include <SPI.h>
+#include <Ethernet.h>
+#endif
+
+#define HTTP_HOST_SIZE 128
+#define HTTP_PATH_SIZE 64
+#define HTTP_ARGS_SIZE 64
 
 class SimpleWebClient {
 public:
   SimpleWebClient( word = 80);
-  
+ ~SimpleWebClient();
+
   void        begin();
   bool        connect();
+  bool        connect( IPAddress  , word = 80);
+  bool        connect( const char*, word = 80);
+  bool        connected();
 
-  char*       setHTTPversion( const char*);
-  char*       httpVersion();
+  char*       version();
+  char*       setVersion( const char*);
 
   char*       host();
   IPAddress   hostIP();
@@ -37,9 +46,9 @@ public:
   word        port();
   void        setPort( word);
 
-  HTTPMethod  httpMethod();
-  void        setHTTPMethod( HTTPMethod);
-  void        setHTTPMethod( const char*);
+  HTTPMethod  method();
+  void        setMethod( HTTPMethod);
+  void        setMethod( const char*);
 
   char*       path();
   void        clrPath();
@@ -57,12 +66,19 @@ public:
   void        receive();
   void        stop();
 
-protected:
-  EthernetClient  _client;                        // HTTP  client object
+  void        print();
 
+protected:
+#if   defined(ESP8266)
+  WiFiClient*     _client;                                  // client for ESP8266
+#elif defined(__AVR__)
+  EthernetClient* _client;                                  // client for Arduino
+#endif
+  SimpleBuffer*   _buffer;
+
+  word            _port;
   char            _host[ HTTP_HOST_SIZE];
   IPAddress       _hostIP;
-  word            _hostPort;
 
   HTTPMethod      _method;
   char            _version[4];

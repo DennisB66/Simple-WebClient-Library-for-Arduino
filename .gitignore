@@ -4,5 +4,4 @@
 .gcc-flags.json
 .travis.yml
 .gitattributes
-lib
 platformio.ini

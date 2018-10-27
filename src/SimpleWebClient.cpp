@@ -7,16 +7,39 @@
 // Repository : https://github.com/DennisB66/Simple-WebClient-Library-for-Arduino
 
 #include "SimpleWebClient.h"
+#include "SimpleUtils.h"
 #include "SimplePrint.h"
+#include "SimpleDebug.h"
 
-#define SIMPLE_WEBCLIENT_DEBUG
+#ifdef SIMPLE_WEBCLIENT_DEBUG
+#define CPRINT(S) _client->print(S); PRINT(S)
+#else
+#define CPRINT(S) _client->print(S)
+#endif
+
+#define BUFFER_SIZE 2000
 
 SimpleWebClient::SimpleWebClient( word port)
 {
-  setPort( port);
+#if   defined(ESP8266)
+  _client = new WiFiClient;
+#elif defined(__AVR__)
+  _client = new EthernetClient;
+#endif
 
-  setHTTPMethod ( HTTP_GET);
-  setHTTPversion( "1.1");
+  _buffer = new SimpleBuffer( BUFFER_SIZE);
+
+  setMethod ( HTTP_GET);
+  setVersion( "1.1");
+  setPath( "/");
+  setPort( port);
+}
+
+//
+SimpleWebClient::~SimpleWebClient()
+{
+  delete _buffer;
+  delete _client;
 }
 
 void  SimpleWebClient::begin()
@@ -26,95 +49,86 @@ void  SimpleWebClient::begin()
 
 bool SimpleWebClient::connect()
 {
-
-  // if ( strlen( _host) > 0) {                               // if host Found
-  //   DNSClient dns;                                        // initialize DNS object
-  //   dns.begin( Ethernet.dnsServerIP());                   // attach default DNS server
-  //   dns.getHostByName( _host, _hostIP);                     // search for host IP
-  // }
-  //
-  // #ifdef SIMPLE_WEBCLIENT_DEBUG                       // print debug info
-  // ADDR_( Serial, F( " / "), _hostIP);
-  // ATTR ( Serial, F( ":")  , _hostPort);
-  // #endif
-  //
-  // if ( _client.connect( _host, _hostPort)) {
-  //   LINE(Serial, "# connected");
-  // }
-
-  if ( strlen( _host) > 0) {
-    _client.connect( _host  , _hostPort);
-
-    #ifdef SIMPLE_WEBCLIENT_DEBUG                       // print debug info
-    ATTR_( Serial, F( "# host = "), _host  ); ATTR( Serial, ":", _hostPort);
-    #endif
+  if ( strlen( _host)) {
+    connect( _host  , _port);
   } else {
-    _client.connect( _hostIP, _hostPort);
-
-    #ifdef SIMPLE_WEBCLIENT_DEBUG                       // print debug info
-    ADDR_( Serial, F( "# host = "), _hostIP); ATTR( Serial, ":", _hostPort);
-    #endif
+    connect( _hostIP, _port);
   }
 
-  return _client.connected();
+  return _client->connected();
 }
 
-void  SimpleWebClient::request()
+bool SimpleWebClient::connect( IPAddress hostIP, word port)
 {
-  if ( _client.connected()) {
-    LINE_( _client, HTTP_Method( _method));
-    ATTR_( _client, " ",         _path);
-    LINE_( _client,              _args);
-    ATTR ( _client, " HTTP/",    _version);
+  _client->connect( _hostIP = hostIP, _port = port);
 
-    if ( strlen( _host) > 0) {
-      ATTR ( _client, "Host: ", _host);
-    } else {
-      ATTR_( _client, "Host: ", _hostIP);
-      ATTR ( _client, ":"     , _hostPort);
-    }
-
-    LINE ( _client, "Connection: close");
-    LINE ( _client, "");
-
-    // _client.println("GET /search?q=arduino HTTP/1.1");
-    // _client.println("Host: github.com");
-    // _client.println("Connection: close");
-    // _client.println();
-
-    #ifdef SIMPLE_WEBCLIENT_DEBUG                       // print debug info
-    LINE_( Serial, HTTP_Method(  _method));
-    ATTR_( Serial, F( " ")     , _path);
-    LINE_( Serial,               _args);
-    ATTR ( Serial, F( " HTTP/"), _version);
-
-    ATTR ( Serial, F( "Host: "), _host);
-    // ATTR_( Serial, F( "Host: "), _hostIP);
-    // ATTR ( Serial, F( ":"     ), _hostPort);
-
-    LINE ( Serial, F( "Connection: close"));
-    LINE ( Serial, F( ""));
-    #endif
-  }
+  return _client->connected();
 }
 
-void  SimpleWebClient::receive()
+bool SimpleWebClient::connect( const char* host, word port)
 {
-  LINE( Serial, "# response");
-  while( _client.connected()) {
-    if ( _client.available()) {
-      char c = _client.read();
-      LINE_( Serial, c);
-    }
+  strCpy( _host, host, HTTP_HOST_SIZE);
+
+  _client->connect( _host, _port = port);
+
+  return _client->connected();
+}
+
+bool SimpleWebClient::connected()
+{
+  return _client->connected();
+}
+
+void SimpleWebClient::request()
+{
+  if ( !_client->connected()) connect();
+
+  if (  _client->connected()) {
+    char buff[256];
+
+    strcpy( buff, HTTP_Method( _method));
+    strcat( buff, " ");
+    strcat( buff, _path);    strcat( buff, _args);
+    strcat( buff, " HTTP/"); strcat( buff, _version);
+    strcat( buff, "\r\n");
+
+    // strcat( buff, "Host: ");
+    // strcat( buff, ( strlen( _host) > 0) ? _host, _hostIP);
+    // strcat( buff, ":"); strcat( buff, _port);
+    // strcat( buff, "\r\n");
+    // strcat( buff, "User-Agent: Arduino/WebClient\r\n");
+    // strcat( buff, "Accept: *.*\r\n");
+    // strcat( buff, "Content-length: 0\r\n");
+    // strcat( buff, "Connection: keep-alive\r\n");
+    // strcat( buff, "\r\n");
+    _client->write( buff, strlen( buff));
   }
-  LINE( Serial, "# response done");
+
+  _buffer->clr();
+}
+
+void SimpleWebClient::receive()
+{
+  //if ( _client->connected()) {
+    while ( _client->available()) {
+      _buffer->put( _client->read());
+    }
+  //}
+}
+
+void SimpleWebClient::print()
+{
+  size_t leng = _buffer->available(); if ( leng == 0) return;
+
+  while ( leng--) {
+    char c = _buffer->get();
+    PRINT(( c == 0) ? ' ' : c);
+  } LF;
 }
 
 void  SimpleWebClient::stop()
 {
-  if ( _client.connected()) {
-    _client.stop();
-  }
+  if ( _client->connected()) _client->stop();
 }
 
 char* SimpleWebClient::host()
@@ -129,9 +143,8 @@ IPAddress SimpleWebClient::hostIP()
 
 void  SimpleWebClient::setHost( IPAddress ip, word port)
 {
-  //memcpy( _hostIP, ip, sizeof( _hostIP));
-  _hostIP   = ip;
-  _hostPort = port;
+  _hostIP = ip;
+  _port   = port;
 }
 
 char* SimpleWebClient::setHost( const char* host)
@@ -144,39 +157,39 @@ char* SimpleWebClient::setHost( const char* host)
 
 word SimpleWebClient::port()
 {
-  return _hostPort;
+  return _port;
 }
 
 void SimpleWebClient::setPort( word port)
 {
-  _hostPort = port;
+  _port = port;
 }
 
-HTTPMethod SimpleWebClient::httpMethod()
+char* SimpleWebClient::version()
 {
-  return _method;
+  return _version;
 }
 
-void  SimpleWebClient::setHTTPMethod( HTTPMethod method)
-{
-  _method = method;
-}
-
-void  SimpleWebClient::setHTTPMethod( const char* method)
-{
-  _method = HTTP_Method( method);
-}
-
-char* SimpleWebClient::setHTTPversion( const char* version)
+char* SimpleWebClient::setVersion( const char* version)
 {
   int l = strlen( version);
 
   return ( l < 4) ? strcpy( _version, version) : NULL;
 }
 
-char* SimpleWebClient::httpVersion()
+HTTPMethod SimpleWebClient::method()
 {
-  return _version;
+  return _method;
+}
+
+void  SimpleWebClient::setMethod( HTTPMethod method)
+{
+  _method = method;
+}
+
+void  SimpleWebClient::setMethod( const char* method)
+{
+  _method = HTTP_Method( method);
 }
 
 void SimpleWebClient::clrPath()
@@ -234,6 +247,8 @@ char* SimpleWebClient::addArgs( const char* param)
     strcat( _args, l ? "&" : "?");
     strcat( _args, param);
 
+    VALUE( _args) LF;
+
     return  _args;
   } else {
     return NULL;
@@ -252,6 +267,8 @@ char* SimpleWebClient::addArgs( const char* param, const char* value)
 
     strcat( _args, "=");
     strcat( _args, value);
+
+    VALUE( _args) LF;
 
     return  _args;
   } else {
