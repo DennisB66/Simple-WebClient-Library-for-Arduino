@@ -86,21 +86,15 @@ void SimpleWebClient::request()
   if (  _client->connected()) {
     char buff[256];
 
-    strcpy( buff, HTTP_Method( _method));
-    strcat( buff, " ");
+    strcpy( buff, HTTP_Method(_method)); strcat( buff, " ");
     strcat( buff, _path);    strcat( buff, _args);
     strcat( buff, " HTTP/"); strcat( buff, _version);
     strcat( buff, "\r\n");
-
-    // strcat( buff, "Host: ");
-    // strcat( buff, ( strlen( _host) > 0) ? _host, _hostIP);
-    // strcat( buff, ":"); strcat( buff, _port);
-    // strcat( buff, "\r\n");
-    // strcat( buff, "User-Agent: Arduino/WebClient\r\n");
-    // strcat( buff, "Accept: *.*\r\n");
-    // strcat( buff, "Content-length: 0\r\n");
-    // strcat( buff, "Connection: keep-alive\r\n");
-    // strcat( buff, "\r\n");
+    strcat( buff, "User-Agent: Arduino\r\n");
+    strcat( buff, "Accept: *.*\r\n");
+    strcat( buff, "Content-length: 0\r\n");
+    strcat( buff, "Connection: keep-alive\r\n");
+    strcat( buff, "\r\n");
     _client->write( buff, strlen( buff));
   }
 
